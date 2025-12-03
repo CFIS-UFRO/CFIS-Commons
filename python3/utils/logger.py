@@ -14,15 +14,6 @@ import colorama
 # Initialize colorama for Windows compatibility
 colorama.init()
 
-# Define a filter to add the level initial to the log record
-# 'D' for DEBUG, 'I' for INFO, etc.
-# This is useful to have a fixed width log format -> easier to read
-class _LevelInitialFilter(logging.Filter):
-    """Adds 'levelinitial' attribute to log records."""
-    def filter(self, record):
-        record.levelinitial = record.levelname[0].upper() if record.levelname else '?'
-        return True
-
 # Main class
 class Logger:
     """
@@ -67,12 +58,11 @@ class Logger:
 
         # Configure the new logger
         logger_to_configure.setLevel(level)
-        logger_to_configure.addFilter(_LevelInitialFilter())
 
         # Formatters
         # Use '>' on Windows, '»' on Unix-like systems
         separator = '>' if sys.platform == 'win32' else '»'
-        log_format = f'[%(asctime)s][%(levelinitial)s] {separator} %(message)s'
+        log_format = f'[%(asctime)s][%(levelname).1s] {separator} %(message)s'
         date_format = '%Y-%m-%d %H:%M:%S'
         file_formatter = logging.Formatter(log_format, datefmt=date_format)
         level_log_colors = {
