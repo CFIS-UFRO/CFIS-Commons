@@ -73,12 +73,13 @@ class Logger:
             datefmt=date_format, log_colors=level_log_colors, reset=True
         )
 
-        # Console Handlers (stdout < ERROR, stderr >= ERROR)
+        # Console Handlers
+        # Messages that are < ERROR go to stdout
         stdout_handler = logging.StreamHandler(sys.stdout)
         stdout_handler.setFormatter(console_formatter)
         stdout_handler.addFilter(lambda record: record.levelno < logging.ERROR)
         logger_to_configure.addHandler(stdout_handler)
-
+        # Messages that are >= ERROR go to stderr
         stderr_handler = logging.StreamHandler(sys.stderr)
         stderr_handler.setFormatter(console_formatter)
         stderr_handler.setLevel(logging.ERROR)
