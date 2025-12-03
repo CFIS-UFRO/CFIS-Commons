@@ -16,9 +16,6 @@ colorama.init()
 
 # Main class
 class Logger:
-    """
-    Centralized logger.
-    """
 
     @staticmethod
     def get_logger(name: Optional[str] = None,
