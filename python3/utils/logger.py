@@ -6,6 +6,7 @@ from pathlib import Path
 from logging.handlers import RotatingFileHandler
 from typing import Union, Optional, Any 
 import re
+
 # Third-party libraries
 import colorlog
 import colorama
@@ -14,16 +15,18 @@ import colorama
 colorama.init()
 
 # Define a filter to add the level initial to the log record
+# 'D' for DEBUG, 'I' for INFO, etc.
+# This is useful to have a fixed width log format -> easier to read
 class _LevelInitialFilter(logging.Filter):
     """Adds 'levelinitial' attribute to log records."""
     def filter(self, record):
         record.levelinitial = record.levelname[0].upper() if record.levelname else '?'
         return True
 
+# Main class
 class Logger:
     """
-    Centralized logger configuration and retrieval.
-    Sets up colored console output, optional file logging, and global uncaught exception handling.
+    Centralized logger.
     """
 
     @staticmethod
@@ -37,8 +40,7 @@ class Logger:
         Retrieves an existing configured logger or configures a new one.
 
         If a logger with the given name already exists and has handlers, it's returned.
-        Otherwise, a new logger is configured with colored console output (stdout for <ERROR,
-        stderr for >=ERROR) and optional rotating file logging.
+        Otherwise, a new logger is configured with optional rotating file logging.
 
         Args:
             name (str | None, optional): The name for the logger instance.
