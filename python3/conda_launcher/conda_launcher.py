@@ -4,7 +4,6 @@
 # --------------------------------------------------------------------------------------------------
 import argparse
 import subprocess
-import tempfile
 from pathlib import Path
 # --------------------------------------------------------------------------------------------------
 # Constants
@@ -18,48 +17,6 @@ PROJECT_NAME = "CFIS Conda Launcher"
 # --------------------------------------------------------------------------------------------------
 def log(msg):
     print(f"[CFIS CONDA LAUNCHER] - {msg}")
-# --------------------------------------------------------------------------------------------------
-# Environment file cleanup
-# --------------------------------------------------------------------------------------------------
-def clean_yml_content(yml_content):
-    """Remove prefix lines and build strings from conda environment YAML content."""
-    cleaned_lines = []
-    for line in yml_content.splitlines():
-        # Skip prefix lines
-        if line.startswith("prefix:"):
-            continue
-
-        # Remove build strings from dependencies (e.g., python=3.9.7=h12debd9_1 -> python=3.9.7)
-        stripped = line.lstrip()
-        if stripped.startswith("- ") and "=" in stripped:
-            # Count the number of '=' in the line
-            eq_count = stripped.count("=")
-            if eq_count > 1:
-                # Find the position of the second '='
-                first_eq = stripped.find("=")
-                second_eq = stripped.find("=", first_eq + 1)
-                # Keep everything before the second '=' (including the indent)
-                indent = len(line) - len(stripped)
-                line = " " * indent + stripped[:second_eq]
-
-        cleaned_lines.append(line)
-
-    return cleaned_lines
-# --------------------------------------------------------------------------------------------------
-# Load and clean environment file
-# --------------------------------------------------------------------------------------------------
-def load_and_clean_environment_file():
-    try:
-        with open(ENVIRONMENT_FILE, "r") as f:
-            content = f.read()
-        cleaned_lines = clean_yml_content(content)
-        temp_file = tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False)
-        temp_file.write("\n".join(cleaned_lines) + "\n")
-        temp_file.close()
-        return Path(temp_file.name)
-    except Exception as e:
-        log(f"Error loading and cleaning environment file: {e}")
-        return None
 # --------------------------------------------------------------------------------------------------
 # Conda verification
 # --------------------------------------------------------------------------------------------------
@@ -123,137 +80,43 @@ def update_environment(env_file):
         log("Error updating environment")
         return False
 # --------------------------------------------------------------------------------------------------
-# Environment save
-# --------------------------------------------------------------------------------------------------
-def save_environment(env_name):
-    log(f"Saving environment '{env_name}' to environment.yml...")
-    try:
-        result = subprocess.run(["conda", "env", "export", "-n", env_name], capture_output=True, text=True, check=True)
-        cleaned_lines = clean_yml_content(result.stdout)
-        with open(ENVIRONMENT_FILE, "w") as f:
-            f.write("\n".join(cleaned_lines) + "\n")
-        log("Environment saved successfully")
-        return True
-    except subprocess.CalledProcessError:
-        log(f"Error saving environment '{env_name}'")
-        return False
-# --------------------------------------------------------------------------------------------------
-# Install package
-# --------------------------------------------------------------------------------------------------
-def install_package(env_name, package_name):
-    log(f"Installing package '{package_name}' in environment '{env_name}'...")
-    try:
-        subprocess.run(["conda", "install", "-n", env_name, "-y", package_name], check=True)
-        log(f"Package '{package_name}' installed successfully")
-        return True
-    except subprocess.CalledProcessError:
-        log(f"Error installing package '{package_name}'")
-        return False
-# --------------------------------------------------------------------------------------------------
-# Uninstall package
-# --------------------------------------------------------------------------------------------------
-def uninstall_package(env_name, package_name):
-    log(f"Uninstalling package '{package_name}' from environment '{env_name}'...")
-    try:
-        subprocess.run(["conda", "remove", "-n", env_name, "-y", package_name], check=True)
-        log(f"Package '{package_name}' uninstalled successfully")
-        return True
-    except subprocess.CalledProcessError:
-        log(f"Error uninstalling package '{package_name}'")
-        return False
-# --------------------------------------------------------------------------------------------------
 # Main
 # --------------------------------------------------------------------------------------------------
 if __name__ == "__main__":
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description=f"{PROJECT_NAME} Launcher")
-    parser.add_argument("command", nargs="?", choices=["update_environment", "save_environment"],
-                        help="Command to execute (optional)")
-    parser.add_argument("--install", metavar="PACKAGE", help="Install a package with conda and update environment.yml")
-    parser.add_argument("--uninstall", metavar="PACKAGE", help="Uninstall a package with conda and update environment.yml")
+    parser.add_argument("--update", action="store_true", help="Update environment before launching")
     args, unknown_args = parser.parse_known_args()
-    # Load and clean environment file
-    TEMP_ENV_FILE = load_and_clean_environment_file()
-    if not TEMP_ENV_FILE:
-        log("Error: Could not load and clean environment.yml")
+
+    log(f"Starting {PROJECT_NAME}")
+
+    # Verify conda installation
+    if not check_conda():
+        log("Error: Conda is required to run this application")
         exit(1)
+
+    # Get environment name
+    env_name = get_environment_name()
+    if not env_name:
+        log("Error: Could not get environment name from environment.yml")
+        exit(1)
+
+    # Check if environment exists, create if not
+    if not check_environment(env_name):
+        if not create_environment(ENVIRONMENT_FILE):
+            log("Error: Failed to create conda environment")
+            exit(1)
+
+    # Update environment if requested
+    if args.update:
+        if not update_environment(ENVIRONMENT_FILE):
+            log("Error: Failed to update conda environment")
+            exit(1)
+
+    # Launch application
+    log("Launching application...")
     try:
-        # Verify conda installation for all operations
-        if not check_conda():
-            log("Error: Conda is required to run this application")
-            exit(1)
-        # Handle --install command
-        if args.install:
-            log(f"Installing package: {args.install}")
-            env_name = get_environment_name()
-            if not env_name:
-                log("Error: Could not get environment name from environment.yml")
-                exit(1)
-            if not check_environment(env_name):
-                log(f"Error: Environment '{env_name}' does not exist. Please run the launcher without arguments to create it first.")
-                exit(1)
-            if not install_package(env_name, args.install):
-                log("Error: Failed to install package")
-                exit(1)
-            if not save_environment(env_name):
-                log("Error: Failed to save environment to environment.yml")
-                exit(1)
-            log("Package installed and environment.yml updated successfully")
-            exit(0)
-        # Handle --uninstall command
-        if args.uninstall:
-            log(f"Uninstalling package: {args.uninstall}")
-            env_name = get_environment_name()
-            if not env_name:
-                log("Error: Could not get environment name from environment.yml")
-                exit(1)
-            if not check_environment(env_name):
-                log(f"Error: Environment '{env_name}' does not exist.")
-                exit(1)
-            if not uninstall_package(env_name, args.uninstall):
-                log("Error: Failed to uninstall package")
-                exit(1)
-            if not save_environment(env_name):
-                log("Error: Failed to save environment to environment.yml")
-                exit(1)
-            log("Package uninstalled and environment.yml updated successfully")
-            exit(0)
-        # Handle command-line commands
-        if args.command:
-            log(f"Running command: {args.command}")
-            if args.command == "update_environment":
-                if not update_environment(TEMP_ENV_FILE):
-                    log("Error: Failed to update conda environment")
-                    exit(1)
-                exit(0)
-            elif args.command == "save_environment":
-                env_name = get_environment_name()
-                if not env_name:
-                    log("Error: Could not get environment name from environment.yml")
-                    exit(1)
-                if not save_environment(env_name):
-                    log("Error: Failed to save conda environment")
-                    exit(1)
-                exit(0)
-        # Normal application launch
-        log(f"Starting {PROJECT_NAME}")
-        # Setup environment
-        env_name = get_environment_name()
-        if not env_name:
-            log("Error: Could not get environment name from environment.yml")
-            exit(1)
-        if not check_environment(env_name):
-            if not create_environment(TEMP_ENV_FILE):
-                log("Error: Failed to create conda environment")
-                exit(1)
-        # Launch application
-        log("Launching application...")
-        try:
-            subprocess.run(["conda", "run", "-n", env_name, "python", str(MAIN_SCRIPT)] + unknown_args, check=True)
-        except subprocess.CalledProcessError:
-            log("Error launching application")
-            exit(1)
-    finally:
-        # Clean up temporary file
-        if TEMP_ENV_FILE and TEMP_ENV_FILE.exists():
-            TEMP_ENV_FILE.unlink()
+        subprocess.run(["conda", "run", "-n", env_name, "python", str(MAIN_SCRIPT)] + unknown_args, check=True)
+    except subprocess.CalledProcessError:
+        log("Error launching application")
+        exit(1)
