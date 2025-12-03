@@ -16,23 +16,21 @@ colorama.init()
 
 # Main class
 class Logger:
+    _logger: Optional[logging.Logger] = None
 
     @staticmethod
-    def get_logger(name: Optional[str] = None,
+    def init_logger(name: str = "logger",
                    level: int = logging.DEBUG,
                    file_path: Optional[Union[str, Path]] = None,
                    file_max_bytes: int = 100 * 1024, # 100 KB
                    file_backup_count: int = 1
                    ) -> logging.Logger:
         """
-        Retrieves an existing configured logger or configures a new one.
-
-        If a logger with the given name already exists and has handlers, it's returned.
-        Otherwise, a new logger is configured with optional rotating file logging.
+        Initializes the global logger with the specified configuration.
+        Should be called once at application startup. Subsequent calls return the existing logger.
 
         Args:
-            name (str | None, optional): The name for the logger instance.
-                                         If None, defaults to 'logger'. Defaults to None.
+            name (str, optional): The name for the logger instance. Defaults to 'logger'.
             level (int, optional): The minimum logging level. Defaults to logging.DEBUG.
             file_path (str | Path | None, optional): If provided, logs will also be
                                                     written to this file. Defaults to None.
@@ -42,16 +40,15 @@ class Logger:
                                                Defaults to 1.
 
         Returns:
-            logging.Logger: A configured logger instance.
+            logging.Logger: The configured logger instance.
         """
 
-        # Use provided name or default to 'logger'
-        effective_name = name if name is not None else "logger"
-        logger_to_configure = logging.getLogger(effective_name)
+        # Return existing logger if already initialized
+        if Logger._logger is not None:
+            return Logger._logger
 
-        # If logger already has handlers, return it as-is
-        if logger_to_configure.hasHandlers():
-            return logger_to_configure
+        # Create and configure the logger
+        logger_to_configure = logging.getLogger(name)
 
         # Configure the new logger
         logger_to_configure.setLevel(level)
@@ -100,7 +97,22 @@ class Logger:
         # Setup global exception handler
         sys.excepthook = Logger._handle_uncaught_exception
 
+        # Store and return the logger
+        Logger._logger = logger_to_configure
         return logger_to_configure
+
+    @staticmethod
+    def get_logger() -> logging.Logger:
+        """
+        Returns the initialized logger.
+        If not initialized, calls init_logger() with default parameters.
+
+        Returns:
+            logging.Logger: The global logger instance.
+        """
+        if Logger._logger is None:
+            Logger.init_logger()
+        return Logger._logger
 
     @staticmethod
     def _handle_uncaught_exception(exc_type, exc_value, exc_traceback):
@@ -131,10 +143,15 @@ class Logger:
 
 if __name__ == "__main__":
     # Example usage
-    logger = Logger.get_logger("test1")
-    logger.info("This is an info message.")
-    logger = Logger.get_logger("test2")
-    logger.info("This is an info message.")
+    # Initialize the logger once at application startup
+    Logger.init_logger(name="myapp", level=logging.DEBUG)
+
+    # Get the logger anywhere in your code
     logger = Logger.get_logger()
+    logger.debug("This is a debug message.")
     logger.info("This is an info message.")
+    logger.warning("This is a warning message.")
+    logger.error("This is an error message.")
+
+    # Test uncaught exception handling
     a = 1/0
