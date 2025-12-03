@@ -60,9 +60,8 @@ class Logger:
         logger_to_configure.setLevel(level)
 
         # Formatters
-        # Use '>' on Windows, '»' on Unix-like systems
-        separator = '>' if sys.platform == 'win32' else '»'
-        log_format = f'[%(asctime)s][%(levelname).1s] {separator} %(message)s'
+        separator = '>' if sys.platform == 'win32' else '»' # Some Windows versions don't support '»'
+        log_format = f'[%(asctime)s][%(name)s][%(levelname).1s] {separator} %(message)s'
         date_format = '%Y-%m-%d %H:%M:%S'
         file_formatter = logging.Formatter(log_format, datefmt=date_format)
         level_log_colors = {
