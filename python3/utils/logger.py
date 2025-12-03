@@ -87,11 +87,7 @@ class Logger:
 
         # Optional File Handler
         if file_path is not None:
-            if isinstance(file_path, Path):
-                file_path.parent.mkdir(parents=True, exist_ok=True)
-            else:
-                Path(file_path).parent.mkdir(parents=True, exist_ok=True)
-
+            Path(file_path).parent.mkdir(parents=True, exist_ok=True)
             file_handler = RotatingFileHandler(
                 filename=file_path, maxBytes=file_max_bytes,
                 backupCount=file_backup_count, encoding='utf-8'
