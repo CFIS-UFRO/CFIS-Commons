@@ -146,7 +146,7 @@ if __name__ == "__main__":
     # Initialize the logger once at application startup
     Logger.init_logger(name="myapp", level=logging.DEBUG)
 
-    # Get the logger anywhere in your code
+    # Get the logger anywhere in the code
     logger = Logger.get_logger()
     logger.debug("This is a debug message.")
     logger.info("This is an info message.")
