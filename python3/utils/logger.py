@@ -23,10 +23,8 @@ class _LevelInitialFilter(logging.Filter):
 class Logger:
     """
     Centralized logger configuration and retrieval.
-    Remembers the last requested logger name for exception handling.
-    Also sets up global uncaught exception logging.
+    Sets up colored console output, optional file logging, and global uncaught exception handling.
     """
-    _last_logger_name: Optional[str] = None # Stores the name of the last logger requested
 
     @staticmethod
     def get_logger(name: Optional[str] = None,
@@ -38,122 +36,82 @@ class Logger:
         """
         Retrieves an existing configured logger or configures a new one.
 
-        Retrieval Logic:
-        1. If 'name' is provided, attempts to retrieve the logger with that name.
-           If it exists and has handlers, it's returned.
-        2. If 'name' is None, attempts to retrieve the last requested logger.
-        3. If 'name' is None, attempts to retrieve the root logger.
-           If it exists and has handlers, it's returned.
-        4. If no existing logger is found, a new logger is configured with the provided parameters.
-
-        Configuration Logic (if no existing logger is found):
-        - A new logger is configured using the provided parameters.
-        - The name used for the new logger is 'name' if provided, otherwise 'logger'.
-        - Uses the format: [asctime][name][LevelInitial] » message
-        - Handles colored console output (stdout for <ERROR, stderr for >=ERROR)
-          and optional rotating file logging.
+        If a logger with the given name already exists and has handlers, it's returned.
+        Otherwise, a new logger is configured with colored console output (stdout for <ERROR,
+        stderr for >=ERROR) and optional rotating file logging.
 
         Args:
             name (str | None, optional): The name for the logger instance.
-                                         If None, checks for the root logger first,
-                                         then defaults to 'logger' when configuring
-                                         a new one. Defaults to None.
-            level (int, optional): The minimum logging level for a newly configured logger.
-                                 Defaults to logging.DEBUG.
+                                         If None, defaults to 'logger'. Defaults to None.
+            level (int, optional): The minimum logging level. Defaults to logging.DEBUG.
             file_path (str | Path | None, optional): If provided, logs will also be
-                                                    written to this file when configuring
-                                                    a new logger. Defaults to None.
+                                                    written to this file. Defaults to None.
             file_max_bytes (int, optional): Max size in bytes for the log file
-                                            before rotation (for new configuration).
-                                            Defaults to 100KB.
-            file_backup_count (int, optional): Number of backup log files to keep
-                                               (for new configuration). Defaults to 1.
+                                            before rotation. Defaults to 100KB.
+            file_backup_count (int, optional): Number of backup log files to keep.
+                                               Defaults to 1.
 
         Returns:
-            logging.Logger: A configured logger instance (either existing or new).
+            logging.Logger: A configured logger instance.
         """
 
-        # 1. Check for existing logger by provided name
-        if name is not None:
-            logger_candidate = logging.getLogger(name)
-            if logger_candidate.hasHandlers():
-                Logger._last_logger_name = name
-                return logger_candidate
-
-        # 2. Check for existing logger by last requested name
-        elif Logger._last_logger_name is not None:
-            logger_candidate = logging.getLogger(Logger._last_logger_name)
-            if logger_candidate.hasHandlers():
-                return logger_candidate
-
-        # 3. Check for existing root logger if name is None
-        elif name is None:
-            logger_candidate = logging.getLogger()
-            if logger_candidate.hasHandlers():
-                Logger._last_logger_name = "root"
-                return logger_candidate
-
-        # 4. Configure a new logger if no existing one was found
+        # Use provided name or default to 'logger'
         effective_name = name if name is not None else "logger"
-        Logger._last_logger_name = effective_name
         logger_to_configure = logging.getLogger(effective_name)
 
-        # Configure only if it doesn't have handlers already
-        # (This check prevents re-configuration if getLogger returned an
-        # existing but unconfigured logger placeholder)
-        if not logger_to_configure.hasHandlers():
-            logger_to_configure.setLevel(level)
-            logger_to_configure.addFilter(_LevelInitialFilter())
+        # If logger already has handlers, return it as-is
+        if logger_to_configure.hasHandlers():
+            return logger_to_configure
 
-            # Formatters
-            # Choose separator based on terminal encoding
-            try:
-                from . import TerminalUtils
-                separator = '»' if TerminalUtils.get_terminal_encoding() == 'utf-8' else '>'
-            except ImportError:
-                separator = '>'  # Fallback
-            log_format = f'[%(asctime)s][%(levelinitial)s] {separator} %(message)s'
-            date_format = '%Y-%m-%d %H:%M:%S'
-            file_formatter = logging.Formatter(log_format, datefmt=date_format)
-            level_log_colors = {
-                'DEBUG':    'cyan', 'INFO':     'green', 'WARNING':  'yellow',
-                'ERROR':    'red', 'CRITICAL': 'red,bold',
-            }
-            console_formatter = colorlog.ColoredFormatter(
-                f'%(log_color)s{log_format}%(reset)s',
-                datefmt=date_format, log_colors=level_log_colors, reset=True
+        # Configure the new logger
+        logger_to_configure.setLevel(level)
+        logger_to_configure.addFilter(_LevelInitialFilter())
+
+        # Formatters
+        # Use '>' on Windows, '»' on Unix-like systems
+        separator = '>' if sys.platform == 'win32' else '»'
+        log_format = f'[%(asctime)s][%(levelinitial)s] {separator} %(message)s'
+        date_format = '%Y-%m-%d %H:%M:%S'
+        file_formatter = logging.Formatter(log_format, datefmt=date_format)
+        level_log_colors = {
+            'DEBUG':    'cyan', 'INFO':     'green', 'WARNING':  'yellow',
+            'ERROR':    'red', 'CRITICAL': 'red,bold',
+        }
+        console_formatter = colorlog.ColoredFormatter(
+            f'%(log_color)s{log_format}%(reset)s',
+            datefmt=date_format, log_colors=level_log_colors, reset=True
+        )
+
+        # Console Handlers (stdout < ERROR, stderr >= ERROR)
+        stdout_handler = logging.StreamHandler(sys.stdout)
+        stdout_handler.setFormatter(console_formatter)
+        stdout_handler.addFilter(lambda record: record.levelno < logging.ERROR)
+        logger_to_configure.addHandler(stdout_handler)
+
+        stderr_handler = logging.StreamHandler(sys.stderr)
+        stderr_handler.setFormatter(console_formatter)
+        stderr_handler.setLevel(logging.ERROR)
+        logger_to_configure.addHandler(stderr_handler)
+
+        # Optional File Handler
+        if file_path is not None:
+            if isinstance(file_path, Path):
+                file_path.parent.mkdir(parents=True, exist_ok=True)
+            else:
+                Path(file_path).parent.mkdir(parents=True, exist_ok=True)
+
+            file_handler = RotatingFileHandler(
+                filename=file_path, maxBytes=file_max_bytes,
+                backupCount=file_backup_count, encoding='utf-8'
             )
+            file_handler.setFormatter(file_formatter)
+            file_handler.setLevel(level)
+            logger_to_configure.addHandler(file_handler)
 
-            # Console Handlers (stdout < ERROR, stderr >= ERROR)
-            stdout_handler = logging.StreamHandler(sys.stdout)
-            stdout_handler.setFormatter(console_formatter)
-            stdout_handler.addFilter(lambda record: record.levelno < logging.ERROR)
-            logger_to_configure.addHandler(stdout_handler)
+        # Prevent propagation for non-root loggers
+        if logger_to_configure.name != "root":
+            logger_to_configure.propagate = False
 
-            stderr_handler = logging.StreamHandler(sys.stderr)
-            stderr_handler.setFormatter(console_formatter)
-            stderr_handler.setLevel(logging.ERROR)
-            logger_to_configure.addHandler(stderr_handler)
-
-            # Optional File Handler
-            if file_path is not None:
-                if isinstance(file_path, Path):
-                    file_path.parent.mkdir(parents=True, exist_ok=True)
-                else:
-                    Path(file_path).parent.mkdir(parents=True, exist_ok=True)
-
-                file_handler = RotatingFileHandler(
-                    filename=file_path, maxBytes=file_max_bytes,
-                    backupCount=file_backup_count, encoding='utf-8'
-                )
-                file_handler.setFormatter(file_formatter)
-                file_handler.setLevel(level)
-                logger_to_configure.addHandler(file_handler)
-
-            # Prevent propagation for non-root loggers
-            if logger_to_configure.name != "root":
-                 logger_to_configure.propagate = False
-                 
         return logger_to_configure
 
     @staticmethod
@@ -173,10 +131,10 @@ class Logger:
 # --- Uncaught Exception Handling ---
 def _handle_uncaught_exception(exc_type, exc_value, exc_traceback):
     """
-    Logs uncaught exceptions using the last requested logger name.
+    Logs uncaught exceptions using the root logger.
     This function is assigned to sys.excepthook to handle errors globally.
     """
-    logger = Logger.get_logger(name=Logger._last_logger_name)
+    logger = Logger.get_logger()
     tb_lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
     traceback_str = "".join(tb_lines)
     message = f"Uncaught exception:\n{traceback_str}"
