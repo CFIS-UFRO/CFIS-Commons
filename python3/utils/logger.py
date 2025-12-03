@@ -129,7 +129,7 @@ class Logger:
     @staticmethod
     def remove_color_codes(text: str) -> str:
         """
-        Remove ANSI color codes from the given text.
+        Utility method to remove ANSI color codes from the given text.
 
         Args:
             text (str): The text to remove the color codes from
