@@ -97,7 +97,22 @@ class Logger:
         if logger_to_configure.name != "root":
             logger_to_configure.propagate = False
 
+        # Setup global exception handler
+        sys.excepthook = Logger._handle_uncaught_exception
+
         return logger_to_configure
+
+    @staticmethod
+    def _handle_uncaught_exception(exc_type, exc_value, exc_traceback):
+        """
+        Logs uncaught exceptions using the main logger.
+        This function is assigned to sys.excepthook to handle errors globally.
+        """
+        logger = Logger.get_logger()
+        tb_lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
+        traceback_str = "".join(tb_lines)
+        message = f"Uncaught exception:\n{traceback_str}"
+        logger.critical(message)
 
     @staticmethod
     def remove_color_codes(text: str) -> str:
@@ -112,23 +127,6 @@ class Logger:
         """
         ansi_escape = re.compile(r'\x1b\[[0-9;]*m')
         return ansi_escape.sub('', text)
-
-# --- Uncaught Exception Handling ---
-def _handle_uncaught_exception(exc_type, exc_value, exc_traceback):
-    """
-    Logs uncaught exceptions using the root logger.
-    This function is assigned to sys.excepthook to handle errors globally.
-    """
-    logger = Logger.get_logger()
-    tb_lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
-    traceback_str = "".join(tb_lines)
-    message = f"Uncaught exception:\n{traceback_str}"
-    logger.critical(message)
-
-# Set the global exception hook to our custom handler
-# This ensures that any unhandled exception triggers the logging function
-sys.excepthook = _handle_uncaught_exception
-# --- End Uncaught Exception Handling ---
 
 
 if __name__ == "__main__":
