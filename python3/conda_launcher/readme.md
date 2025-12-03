@@ -9,30 +9,39 @@ A Python launcher that uses the system's Python executable to create a Conda env
 
 # Integration guide for developers
 
-## 1. Create the Conda environment for your project
+## 1. Create the environment specification file
 
-```bash
-conda create -n myproject python=<version>
-conda activate myproject
-# Install your project dependencies
-conda install numpy pandas scikit-learn ...
+Create an `environment.yml` file based on the included example ([environment.yml](environment.yml)). The file structure is:
+
+```yaml
+name: your-environment-name      # Environment name
+channels:
+  - conda-forge                  # Package sources
+  - defaults
+dependencies:
+  - python=3.11                  # Python version
+  - numpy                        # Conda packages
+  - pandas
+  - matplotlib
+  - pip:                         # Pip packages (optional)
+    - requests
 ```
 
-## 2. Export the environment specification
+**Key sections:**
+- `name`: Conda environment name.
+- `channels`: Channels used to retrieve the packages.
+- `dependencies`:
+  - Python version: `python=x.xx`
+  - Conda packages, for packages coming from the conda channels, like: `numpy`, `pandas`, ...
+  - Pip packages, for packages coming from the pip repository.
 
-```bash
-conda env export > environment.yml
-```
-
-It is recommended to delete the last line from the exported file: `prefix: ...`.
-
-### 3. Configure the launcher
+## 2. Configure the launcher
 
 Edit the launcher script to specify:
 - Path to your `environment.yml` file
 - Path to your main script (e.g., `src/main.py`)
 
-### 4. Project structure
+## 3. Project structure
 
 Your project structure should look like this:
 
@@ -52,7 +61,11 @@ Once configured, simply run the launcher:
 python3 launcher.py
 ```
 
-The launcher will handle environment setup and run your main script automatically.
+The launcher will:
+1. Verify conda is installed
+2. Check if the environment exists
+3. Create the environment if needed
+4. Launch your application
 
 ### Supported commands
 
@@ -60,17 +73,8 @@ The launcher will handle environment setup and run your main script automaticall
 # Run the main script (default behavior)
 python3 launcher.py [args...]
 
-# Update the conda environment from environment.yml
-python3 launcher.py update_environment
-
-# Save the current environment to environment.yml
-python3 launcher.py save_environment
-
-# Install a package and update environment.yml
-python3 launcher.py --install PACKAGE_NAME
-
-# Uninstall a package and update environment.yml
-python3 launcher.py --uninstall PACKAGE_NAME
+# Update the conda environment before launching
+python3 launcher.py --update [args...]
 ```
 
 Any unrecognized arguments are passed transparently to the main script.
