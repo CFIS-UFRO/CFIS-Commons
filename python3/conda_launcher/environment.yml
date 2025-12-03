@@ -1,0 +1,9 @@
+name: cfis-conda-launcher
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - numpy
+  - pip:
+    - requests
