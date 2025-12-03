@@ -23,7 +23,8 @@ class Logger:
                    level: int = logging.DEBUG,
                    file_path: Optional[Union[str, Path]] = None,
                    file_max_bytes: int = 100 * 1024, # 100 KB
-                   file_backup_count: int = 1
+                   file_backup_count: int = 1,
+                   show_name: bool = False
                    ) -> logging.Logger:
         """
         Initializes the global logger with the specified configuration.
@@ -38,6 +39,8 @@ class Logger:
                                             before rotation. Defaults to 100KB.
             file_backup_count (int, optional): Number of backup log files to keep.
                                                Defaults to 1.
+            show_name (bool, optional): Whether to show the logger name in the format.
+                                        Defaults to False.
 
         Returns:
             logging.Logger: The configured logger instance.
@@ -55,7 +58,8 @@ class Logger:
 
         # Formatters
         separator = '>' if sys.platform == 'win32' else '»' # Some Windows versions don't support '»'
-        log_format = f'[%(asctime)s][%(name)s][%(levelname).1s] {separator} %(message)s'
+        name_part = '[%(name)s]' if show_name else ''
+        log_format = f'[%(asctime)s]{name_part}[%(levelname).1s] {separator} %(message)s'
         date_format = '%Y-%m-%d %H:%M:%S'
         file_formatter = logging.Formatter(log_format, datefmt=date_format)
         level_log_colors = {
