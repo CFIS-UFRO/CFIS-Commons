@@ -21,8 +21,30 @@ def log(msg):
 # --------------------------------------------------------------------------------------------------
 # Environment file cleanup
 # --------------------------------------------------------------------------------------------------
-def remove_prefix_from_yml(yml_content):
-    return [line for line in yml_content.splitlines() if not line.startswith("prefix:")]
+def clean_yml_content(yml_content):
+    """Remove prefix lines and build strings from conda environment YAML content."""
+    cleaned_lines = []
+    for line in yml_content.splitlines():
+        # Skip prefix lines
+        if line.startswith("prefix:"):
+            continue
+
+        # Remove build strings from dependencies (e.g., python=3.9.7=h12debd9_1 -> python=3.9.7)
+        stripped = line.lstrip()
+        if stripped.startswith("- ") and "=" in stripped:
+            # Count the number of '=' in the line
+            eq_count = stripped.count("=")
+            if eq_count > 1:
+                # Find the position of the second '='
+                first_eq = stripped.find("=")
+                second_eq = stripped.find("=", first_eq + 1)
+                # Keep everything before the second '=' (including the indent)
+                indent = len(line) - len(stripped)
+                line = " " * indent + stripped[:second_eq]
+
+        cleaned_lines.append(line)
+
+    return cleaned_lines
 # --------------------------------------------------------------------------------------------------
 # Load and clean environment file
 # --------------------------------------------------------------------------------------------------
@@ -30,7 +52,7 @@ def load_and_clean_environment_file():
     try:
         with open(ENVIRONMENT_FILE, "r") as f:
             content = f.read()
-        cleaned_lines = remove_prefix_from_yml(content)
+        cleaned_lines = clean_yml_content(content)
         temp_file = tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False)
         temp_file.write("\n".join(cleaned_lines) + "\n")
         temp_file.close()
@@ -107,7 +129,7 @@ def save_environment(env_name):
     log(f"Saving environment '{env_name}' to environment.yml...")
     try:
         result = subprocess.run(["conda", "env", "export", "-n", env_name], capture_output=True, text=True, check=True)
-        cleaned_lines = remove_prefix_from_yml(result.stdout)
+        cleaned_lines = clean_yml_content(result.stdout)
         with open(ENVIRONMENT_FILE, "w") as f:
             f.write("\n".join(cleaned_lines) + "\n")
         log("Environment saved successfully")
