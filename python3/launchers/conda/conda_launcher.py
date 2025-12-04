@@ -116,7 +116,7 @@ if __name__ == "__main__":
     # Launch application
     log("Launching application...")
     try:
-        subprocess.run(["conda", "run", "-n", env_name, "python", str(MAIN_SCRIPT)] + unknown_args, check=True)
+        subprocess.run(["conda", "run", "--no-capture-output", "-n", env_name, "python", str(MAIN_SCRIPT)] + unknown_args, check=True)
     except subprocess.CalledProcessError:
         log("Error launching application")
         exit(1)
