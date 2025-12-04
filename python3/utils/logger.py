@@ -34,7 +34,10 @@ class Logger:
             name (str, optional): The name for the logger instance. Defaults to 'logger'.
             level (int, optional): The minimum logging level. Defaults to logging.DEBUG.
             file_path (str | Path | None, optional): If provided, logs will also be
-                                                    written to this file. Defaults to None.
+                                                    written to this file. If a directory path
+                                                    is provided, the log file will be created
+                                                    as '{name}.log' inside that directory.
+                                                    Defaults to None.
             file_max_bytes (int, optional): Max size in bytes for the log file
                                             before rotation. Defaults to 100KB.
             file_backup_count (int, optional): Number of backup log files to keep.
@@ -85,9 +88,14 @@ class Logger:
 
         # Optional File Handler
         if file_path is not None:
-            Path(file_path).parent.mkdir(parents=True, exist_ok=True)
+            file_path_obj = Path(file_path)
+            # If file_path is a directory, create the log file path using the logger name
+            if file_path_obj.is_dir() or not file_path_obj.suffix:
+                file_path_obj = file_path_obj / f"{name}.log"
+            # Ensure parent directory exists
+            file_path_obj.parent.mkdir(parents=True, exist_ok=True)
             file_handler = RotatingFileHandler(
-                filename=file_path, maxBytes=file_max_bytes,
+                filename=str(file_path_obj), maxBytes=file_max_bytes,
                 backupCount=file_backup_count, encoding='utf-8'
             )
             file_handler.setFormatter(file_formatter)
