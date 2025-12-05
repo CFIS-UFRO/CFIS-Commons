@@ -24,7 +24,7 @@ class I18n:
             locales_dir: Path to the directory containing JSON translation files
             language: Language code to load (e.g., 'es', 'en'). If None, detects system language.
             fallback_language: Fallback language code to use when translations are missing. Defaults to 'en'.
-            logger: Logger instance for warnings. If None, creates a basic console logger.
+            logger: Logger instance for warnings. If None, no logging will occur.
 
         Raises:
             FileNotFoundError: If locales directory or language files don't exist
@@ -35,21 +35,21 @@ class I18n:
         if not I18n._locales_dir.exists():
             raise FileNotFoundError(f"Locales directory not found: {I18n._locales_dir}")
 
-        # Setup logger
+        # Setup logger (use NullHandler if None to silently discard logs)
         if logger is None:
-            I18n._logger = logging.getLogger()
-            # Configure basic format only if not already configured
-            if not I18n._logger.handlers:
-                logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.WARNING)
+            I18n._logger = logging.getLogger(__name__)
+            I18n._logger.addHandler(logging.NullHandler())
         else:
             I18n._logger = logger
 
         # Auto-detect system language if not specified
         if language is None:
+            I18n._logger.info("No language specified, detecting system language.")
             language = I18n.get_system_language()
 
         # Use default fallback language if not specified
         if fallback_language is None:
+            I18n._logger.info(f"No fallback language specified, using default: {I18n._DEFAULT_LANGUAGE}")
             fallback_language = I18n._DEFAULT_LANGUAGE
 
         I18n._configure_languages(language, fallback_language)
@@ -90,6 +90,7 @@ class I18n:
         """
         # Try current language
         if I18n._current_language and key in I18n._translations.get(I18n._current_language, {}):
+            I18n._logger.debug(f"Translation found for key '{key}' in language '{I18n._current_language}'")
             return I18n._translations[I18n._current_language][key]
 
         # Try fallback language
@@ -114,8 +115,9 @@ class I18n:
         """
         if I18n._locales_dir is None:
             raise RuntimeError("I18n system not initialized. Call init_i18n() first.")
-
-        return [file.stem for file in I18n._locales_dir.glob("*.json")]
+        available_languages = [file.stem for file in I18n._locales_dir.glob("*.json")]
+        I18n._logger.info(f"Available languages: {available_languages}")
+        return available_languages
 
     @staticmethod
     def get_system_language() -> str:
@@ -128,8 +130,11 @@ class I18n:
         try:
             lang = locale.getlocale()[0]
             if lang:
-                return lang.split('_')[0]
+                lang = lang.split('_')[0]
+                I18n._logger.info(f"Detected system language: {lang}")
+                return lang
         except Exception:
+            I18n._logger.warning(f"Failed to detect system language, using default.")
             pass
         return I18n._DEFAULT_LANGUAGE
 
@@ -148,8 +153,10 @@ class I18n:
         """
         # Load both languages (only if not already loaded)
         if language not in I18n._translations:
+            I18n._logger.info(f"Loading user language: {language}")
             I18n._load_language(language)
         if fallback_language not in I18n._translations:
+            I18n._logger.info(f"Loading fallback language: {fallback_language}")
             I18n._load_language(fallback_language)
 
         # Set current and fallback languages
@@ -169,6 +176,8 @@ class I18n:
             ValueError: If the JSON file has invalid format
         """
         language_file = I18n._locales_dir / f"{language_code}.json"
+
+        I18n._logger.info(f"Loading language file: {language_file}")
 
         if not language_file.exists():
             raise FileNotFoundError(f"Language file not found: {language_file}")
@@ -196,9 +205,3 @@ if __name__ == '__main__':
 
     # Test translations
     print(f"Test translation: {I18n.t('test_key')}")
-
-    # Test with different languages
-    print("\n--- Testing different languages ---")
-    for lang in I18n.get_available_languages():
-        I18n.set_language(lang, 'en')
-        print(f"{lang}: {I18n.t('test_key')}")
